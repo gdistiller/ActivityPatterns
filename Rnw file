@@ -1,0 +1,480 @@
+% !TeX program = pdfLaTeX
+\documentclass[a4paper]{article}
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+%% Useful packages
+\usepackage{amsmath, amsfonts, bm, booktabs,multirow}
+\usepackage{graphicx, float}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage[round]{natbib}
+
+\title{Using Continuous-Time Spatial Capture Recapture (CT SCR) models to make inference about animal activity patterns.}
+\author{G Distiller, D Borchers}
+
+\graphicspath{{C:/Users/01376436/OneDrive - University of Cape Town/Documents/Research/PhD/Greg's PhD/Thesis/Images/}}
+
+\begin{document}
+\maketitle
+
+<<load.libraries, include = FALSE, echo = FALSE, results = "hide">>=
+library(mgcv)
+library(secr)
+library(scrmlebook)
+library(xtable)
+@
+
+\begin{abstract}
+\begin{enumerate}
+\item Quantifying the distribution of daily activity is an important component of behavioral ecology. Historically it has been difficult to obtain data on activity patterns, especially for elusive species. However the development of affordable camera traps, and their widepsread usage, has led to an explosion of available data from which activity patterns can be estimated.  
+\item Newly developed Continuous-Time Spatial Capture Recapture (CT SCR) models drop the occasion structure seen in traditional spatial and non-spatial Capture-Recapture (CR) models, and rather use the actual times of capture. In addition to estimating density, the CT SCR model estimates detectability through time. Cyclic splines can be used to estimate a flexible shape for circular temporal data that can be used to make inference about activity patterns. This method is applied to a dataset on jaguars. 
+\item Jaguars in Belize exhibit a crepuscular activity pattern, and there is some evidence that females have a different pattern to males. The comparison between sexes demonstrates how different types of hypotheses regarding animal behaviour can be explored within a formal modeling framework. 
+\item SCR models were developed primarily to estimate and model density, but there has been an increasing realisation that the models can be used to make inference about other spatio-temporal processes. This paper adds to that body of work by demonstrating how CT SCR models can be used to make inference about activity patterns.
+\end{enumerate}
+\end{abstract}
+{\bfseries Keywords:} spatial capture-recapture, continuous-time spatial capture-recapture, activity patterns, behavioural ecology,  temporal partitioning
+
+\section{Introduction}
+
+Animal activity patterns are an important aspect of species ecology that affect community interactions and community structure \citep{Bridges11, Gerber12b, Farris15, Frey17}. The way an animal behaves is driven by an energetic trade off between different activities. Being active is necessary for sustenance but more costly than resting, and animals need to optimise the way that they expend energy relative to the cost associated with these activities \citep{Frey17}. For example, predators can maximise their chances of success by hunting when prey are most vulnerable whereas prey may adjust their activity patterns to avoid predation. Adjustments may occur across space when for example wide-ranging predators have been known to exhibit local adaptations that match the pattern of their prey, but are also know to vary across time for example with differences in night-time illumination caused by the lunar cycle \citep{Harmsen11}. Strategies for coexistence usually involve differential preferences for prey, habitat, or distribution of activity levels, but apart from sympatry and predator-prey dynamics, understanding activity patterns provides insight into various other processes such as the effects of local density, anthropomorphic disturbances, seasonal fluctuations of resources, circadian rhythms, and even the degree of synchronicity between peaks in activity \citep{Harmsen09, Ridout09, Farris15, Frey17}.  
+
+Unfortunately activity is not an easy metric to quantify in natural settings and consequently has received relatively little attention. Historically, data on activity patterns was obtained by directly observing individual animals in the field or in the laboratory. More recently, devices that can track movement (such as radio collars and multiaxial accelerometers) have led to improved ways of measuring activity \citep{Rowcliffe14} although usually the cost and effort restricts such studies to a small number of individuals \citep{Harmsen09}. Timing devices can also be fitted with live traps to provide auxillary data on the times of capture, for example \citet{Cowan12} used traps with timing devices to study the behavioural response of possums to capture. 
+
+Camera trap surveys are a non-invasive way to ``capture'' or detect individuals and can be applied in a wide range of settings to generate data on multiple species, including species that are difficult to capture or observe directly. Compared to traditional approaches, it is now easier to collect data on a range of species. Camera traps have been used in the field as remote sensors since the early 20th century but technological advancements over the past two decades have made these devices less expensive and more effective, becoming a mainstream tool in ecological research.  Data obtained from camera traps are being used for various types of analyses including studies of species richness, occupancy models, and capture-recapture (CR) models (both spatial and non-spatial) \citep{Rowcliffe08, Rowcliffe08b, Ridout09, Harmsen09, Steenweg17}. 
+
+Data from camera traps are generated in continuous-time. They usually consist of photographs along with a date and time stamp and therefore contain information that can be used to make inference about activity pattern. Using data from camera trap surveys, \citet{Harmsen09} examine histograms of hourly capture times to make inference about the hourly activity of jaguars and pumas (as well as their major prey species \citep{Harmsen11}). Others have used kernel density estimation (KDE) for circular data, or fitted circular distributions (such as the Von Mises distribution) to the data, to produce  estimators of the continuous activity pattern distributions \citep{Ridout09, Linkie11, Oliveira13, Rowcliffe14, Farris15}. Current approaches for quantifying activity patterns from temporal data have made progress but exploring how different covariates affect activity remains a challenge \citep{Frey17} and the lack of a standardised methodology has limited research into activity patterns.
+
+Historically, researchers conducting surveys of wildlife populations would sample the population of interest at discrete points in time (for example at the start of the breeding season). Such a study design leads to clear and well defined occasions and is the primary reason why traditional CR and Spatial Capture-Recapture (SCR) models have an occasion structure. However, in contrast to these traditional surveys, devices like camera traps sample continuously in time. The growing usage and importance of camera trap surveys has led to the development of a Continuous-Time (CT) SCR model that operates with times of detection \citep{Borchers14, Distiller15, Distiller16}. 
+
+While the primary aim of SCR models is to estimate and model animal density, it is possible to use these models to learn about other processes and the CT SCR framework provides a formal modelling framework to explore different hypotheses about activity patterns. Furthermore, understanding the complexities of interactions between space and time use for individuals within populations is essential to understanding variation between populations in terms of general ecology and distribution, as we would expect that differences in the timing of activity will interact with space use. Understanding this interaction is essential for understanding the spatial distribution of species ecology in detail.
+
+This paper uses data from a camera trap survey of jaguars in Belize to demonstrate how CT SCR models can be used to make inference about animal activity patterns. Initially models are fitted to detections of male jaguars only and then subsequently to data on both sexes to illustrate how sex-specific encounter rate functions can be estimated. Subsection \ref{subsec:jags}) provides further details of the data and Subsection \ref{subsec:CTSCR} introduces the CT SCR model with different ways to parameterise the encounter rate function. The results are shown in Section \ref{sec:results} and the discussion in Section \ref{sec:discussion}. 
+
+\section{Materials and Methods}
+
+\subsection{Jaguar data}
+\label{subsec:jags}
+
+\subsubsection{Study site and camera trapping of jaguars}
+
+The Cockscomb Basin Wildlife Sanctuary in Belize  encompasses 490 km$^2$ of secondary tropical moist broadleaf forest at various stages of regeneration following anthropogenic and natural disturbance \cite[for more details see][]{Harmsen10b}. To the west, the sanctuary forms a contiguous forest block with the protected forests of the Maya Mountain Massif ($\approx$ 5,000 km$^2$ of forest). To the east the sanctuary is partially buffered by unprotected forest beyond which is a mosaic of pine savannah, shrub land and broadleaf forest, inter-dispersed with villages and farms. Jaguars (\emph{Panthera onca}) are found throughout this landscape \citep*{Foster10}. There are 65 km of trails, all within the eastern part of the sanctuary (see Figure~\ref{fig:maps}). 
+
+Twenty paired camera stations (Pantheracam v3) were deployed along the trail network within the eastern basin. Neighbouring stations had an average spacing of 2.0 km (1.1 to 3.1 km) and digital photographic data were downloaded every two weeks.The data used in this paper include detections of both male and female jaguars over a 6-month period (August 2013 to February 2014).
+
+%In this study few female jaguars were detected and since females have very different home ranges and possibly density, the analyses only use male detections. Male jaguars routinely walk the trail system and trail use overlaps extensively. Although they frequently leave the trails to move through the forest they are rarely detected off-trail by camera traps \citep{Harmsen10}. Nineteen paired camera stations (Pantheracam v3) were deployed along the trail network within the eastern basin and maintained for 90 days (April to July 2011). Neighbouring stations had an average spacing of 2.0 km (1.1 to 3.1 km) and digital photographic data were downloaded every two weeks.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.7\textwidth]{maps.pdf}
+\caption{Camera trap survey sites within Cockscomb Basin Wildlife Sanctuary, Belize.
+\label{fig:maps}}
+\end{figure}
+
+\subsection{Continuous-Time Spatial Capture-Recapture (CT SCR)}
+\label{subsec:CTSCR}
+
+Assume that data are generated from a survey of duration $T$ that uses an array of $J$ camera traps. The primary difference from the discrete-time (DT) setup is that there are no longer $K$ occasions. For the $i$th detected individual, instead of a capture history of length $K$ there are $\omega_{ij}$ captures at detector $j$ at times $\bm{t}_{ij}=(t_{ij1},\ldots,t_{ij\omega_{ij}})$. In addition, there are $n$ unique animals where the two-dimensional coordinate of the $i$th individual's activity centre is notated as $\bm{s}_i$, and the distance from an individual's activity centre to the $j$th detector ($d_j(\bm{s}_i)$) affects detectability. Note that the dependence of detection on distance through $\bm{s}$ is not always made explicit.
+
+%and $\bm{S}=(\bm{s}_1,\ldots,\bm{s}_n)$
+%where $\omega_{ij}$ is an integer representing how many times individual $i$ is caught at detector $j$
+
+The observation process in the DT SCR formulation can be parameterised to use either a detection function or an encounter rate function. For an occasion of some specified length, and for an individual whose activity centre is a certain distance away from the camera trap, the detection function estimates the probability of detecting an individual and the encounter rate function estimates the expected number of encounters. The CT formulation also uses an encounter rate function but the difference is that the traditional DT SCR models make an implicit assumption that, for a given distance, the expected encounter rate is constant across an occasion. CT models generalise the encounter rate function so that, in addition to space, detectability also depends on time. This scenario is more realistic than a constant detection rate through time as most animals are more likely to be caught at certain times of the day rather than others depending on their behaviour and activity patterns. Consequently the expected encounter rate for the $i$th individual and the $j$th detector at time $t$ now depends on both space and time and is denoted as $\lambda_{j}(t,\bm{s}_i ; \bm{\theta})$, where $\bm{\theta}$ is an unknown vector of encounter rate function parameters. 
+
+The CT framework models the process generating detections as a non-homogeneous Poisson process where the events of interest are detections. The ``survivor function'' for individual $i$ at detector $j$ over the whole survey (the probability of individual $i$ not being detected by detector $j$ by time $T$) is 
+
+\begin{equation}
+S_{j}(T, \bm{s}_i;\bm{\theta})=\exp{\left(-\int_0^T \lambda_{j}(t,\bm{s}_i;\bm{\theta})\;dt\right) }  
+\end{equation}
+
+and hence $1-S_{j}(T, \bm{s}_i;\bm{\theta})$ is the probability of detection during the period $(0,T)$. Similarly the combined detection hazard over all $J$ detectors at time $t$ is $\lambda_{\cdot}(t,\bm{s}_i;\bm{\theta})=\sum_{j=1}^J \lambda_{j}(t,\bm{s}_i;\bm{\theta})$, and the overall probability of detection in $(0,T)$ over all detectors is $p_{\cdot}(\bm{s}_i;\bm{\theta})=1-S_{\cdot}(T, \bm{s}_i;\bm{\theta})$, where $S_{\cdot}(T,\bm{s}_i;\bm{\theta})=\exp{\left(-\int_0^T \lambda_{\cdot}(t,\bm{s}_i;\bm{\theta})\;dt\right)}$ is the overall survivor function. 
+
+Assuming that, conditional on the activity centre location, the times of detection are independent, the detection times for individual $i$ at detector $j$ can be modelled with pdf:
+
+\begin{align}
+f(\bm{t}_{ij} \mid \bm{s}_i ; \bm{\theta})
+&= S_{j}(T,\bm{s}_i;\bm{\theta})\prod_{r=1}^{\omega_{ij}} \lambda_j(t_{ijr},\bm{s}_i;\bm{\theta})
+\label{eqn:f_k(t)}
+\end{align}
+
+Furthermore, the number of individuals detected during the survey is a Poisson random variable with parameter $\Lambda(\bm{\theta},\bm{\phi})=\int_{A}D(\bm{x};\bm{\phi})p_\cdot(\bm{x};\bm{\theta})\;d\bm{x}$ where $D()$ is a function for animal density, $\bm{x}$ is the two-dimensional coordinate of any location in the study area, and $\bm{\phi}$ is a vector of unknown parameters that govern the intensity and hence the distribution of activity centres.
+
+The CT SCR likelihood can then be shown \citep{Borchers14} to be:
+
+\begin{eqnarray}
+L(\bm{\phi},\bm{\theta} \mid n, \bm{t})  = \frac{e^{-\Lambda(\bm{\phi},\bm{\theta})}}{n!} \prod_{i=1}^{n} \int_{\mathbb{A}} D(\bm{s}_i;\bm{\phi})  \prod_{j=1}^J S_j(T, \bm{s}_i;\bm{\theta})\prod_{r=1}^{\omega_{ij}} \lambda_j(t_{ijr},\bm{s}_i;\bm{\theta}) \; d\bm{s}  
+\label{eqn:ctsLL2}
+\end{eqnarray}
+
+\subsubsection{The CT encounter rate function}
+
+Detectability now depends on both space and time. Suitable functional forms for $\lambda$ as a function of time will depend on the problem at hand. In general, the encounter rate is not expected to increase or decrease monotonically with time and regression splines are used to model flexible forms of dependence. The focus here is on cyclical functions that repeat themselves after a specified cycle duration and are constrained to transition smoothly between cycles. With a cycle duration of 24 hours, we can model daily patterns in detectability that arise from daily cycles in animal behaviour. For example, nocturnal animals are more likely to be detected during the night than the day, and to transition smoothly between being more and less detectable, so that a smooth function of time is appropriate.
+
+Figure \ref{fig:continuous-time.hazshapes} displays three possible cyclical encounter rate functions with a cycle duration of 24 hours, which may be appropriate for modelling a daily cycle in detectability. These plots focus on the shape of the encounter function through time and hence are scaled so that they integrate to 1. The top panel shows a simple encounter rate function that rises to a peak about halfway through the cycle and then falls away again. The second example is similar but remains around its peak for a longer time. The final example shows an encounter rate function that has two peaks, if one considers the 24 hour hazard cycle to be in sync with a 24 hour daily cycle then these peaks occur roughly at dawn and dusk. 
+
+\begin{figure}[ht]
+\caption{\small Three examples of possible encounter rate shapes that can be modelled using regression splines of increasing complexity. From top to bottom the degrees of freedom (as passed to the \emph{gam} function in package \emph{mgcv}) are 4, 8 and 10.}
+
+<<continuous-time.CTHaz.Shapes, include = TRUE, echo = FALSE, results = "hide">>=
+hour.24 = seq(0,24,by=1)
+mesh.2 = seq(0,24,by=0.01)
+mesh.2.width = mesh.2[2]-mesh.2[1]
+total.crep <- c(8, 8, 14, 18, 26, 35, 38, 35, 30, 20, 16, 12, 8, 5, 10, 14, 26, 30, 35, 28, 20, 17, 12, 10, 8)
+total.plateau <- c(2, 3, 6, 8, 15, 19, 21, 47, 55, 69, 72, 68, 68, 68, 69, 70, 66, 42, 38, 27, 16, 10, 6, 2, 2)
+
+Haz1.4 <- create.GAM(hour.24, total.plateau, 4, pred.mesh_ = mesh.2)
+Y1 <- exp(Haz1.4[[4]] %*% Haz1.4[[2]])
+
+Haz1.8 <- create.GAM(hour.24, total.plateau, 8, pred.mesh_ = mesh.2)
+Y2 <- exp(Haz1.8[[4]] %*% Haz1.8[[2]])
+
+Haz2.10 <- create.GAM(hour.24, total.crep, 10, pred.mesh_ = mesh.2)
+Y3 <- exp(Haz2.10[[4]] %*% Haz2.10[[2]])
+
+m <- matrix(c(1,2,3),nrow = 3,ncol = 1,byrow = TRUE)
+layout(mat = m,heights = c(0.33,0.33,0.33))
+par(cex=1, mar=c(4, 4, 1.8, 0.5), oma=c(3, 3, 0, 0))
+plot(Y1/(sum(Y1)*mesh.2.width) ~ mesh.2, xlab="", ylab="", type='l', lwd=1, main = 'df = 4',cex.main=0.75)
+plot(Y2/(sum(Y2)*mesh.2.width) ~ mesh.2, xlab="", ylab="", type='l', lwd=1, main = 'df = 8',cex.main=0.75)
+plot(Y3/(sum(Y3)*mesh.2.width) ~ mesh.2, xlab="", ylab="", type='l', lwd=1, main = 'df = 10',cex.main=0.75)
+
+mtext("Encounter Rate (scaled)", side=2, outer=T, cex = 2)
+mtext("Cycle hour", side=1, outer=T, cex = 2)
+@
+\label{fig:continuous-time.hazshapes}
+\end{figure}
+
+It is possible that detectability can also depend on cycles with a longer duration. For example a fuller moon leads to brighter hunting conditions and \citet{Harmsen11} report that the two main prey species of jaguars and pumas both exhibited reduced activity under these conditions, and discuss different potential predator strategies in response to this reduction in activity. Note however that it is likely that if such a process existed it would be on top of a shorter daily detection cycle and  both would need to be modelled together. 
+
+There are different ways that one can make the encounter rate function depend on time. It is common practice to make the intercept and/or the scale parameter depend on covariates, and as time is just another covariate, we can parameterise dependence on time in this way too. Note that the $_{ij}$ notation is suppressed in the rest of this chapter for brevity.
+
+\paragraph{Time-dependent $\lambda_0$}
+
+The standard DT expected encounter rate function can be shown to have this form: $$\lambda(d)=\lambda_0\tilde{\lambda}(d)$$ where $\tilde{\lambda}(0)=1$. Here $\lambda_0$ is the expected number of encounters per unit time of an animal with activity centre at the detector and the function $\tilde{\lambda}(d)$ is sometimes called a ``kernel''; it might have half-normal form, for example. One parameterisation specifies models in which $\lambda_0$ depends on time and is written as $$\lambda_0(t)=\exp\{\beta_0+\sum_{v=1}^V\beta_vb_v(t)\}$$ where $b_v(t)$ ($v=1,\ldots V$) is a set of (possibly cyclic) basis functions. If $\exp\{\beta_0\}$ is written as $\lambda_0$ the encounter rate function can be written as
+
+\begin{equation}
+\lambda(d,t) = \lambda_0(t) \tilde{\lambda}(d) =\lambda_0  e^{\left(\sum_{v=1}^V\beta_vb_v(t)\right)} \tilde{\lambda}(d) = \left( \lambda_0 \tilde{\lambda}(d) \right) e^{\left(\sum_{v=1}^V\beta_vb_v(t)\right)}
+\label{eqn:continuous-time.hazt1}
+\end{equation}
+
+where $\tilde\lambda(d)$ is one of our usual encounter rate functions that depend on distance. 
+
+In this case, distance just scales the encounter rate function but does not change its shape across time, and $\exp\{\sum_{v=1}^V\beta_vb_v(t)\}$ determines the shape of the encounter rate function over time. The R package \emph{mgcv} \citep{Wood14} is used to construct the necessary basis functions that are then used as ordinary covariates in the CT SCR model. With this parameterisation the $\beta_0$ spline intercept is redundant as it gets absorbed into the $\tilde{\lambda}(d)$ term, and a degree of freedom is lost when specifying functions with a cyclic cubic spline form. Hence the number of degrees of freedom ($df$) that are reported here matches the number passed to the \emph{gam} function in package \emph{mgcv} and the actual number of parameters estimated in the reported models is two less than the $df$ value.
+
+A consequence of seperating the effects of time and distance, as above, is that there is no information in the detection times about density.  Therefore, if the underlying data are being generated from such a process, a DT model estimator that ignores the capture times will not be biased for density \citep{Distiller16}. However, detection times do still contain information about how activity patterns change with time (if detection is by virtue of movement, for example), and this may be of interest in itself. 
+
+\paragraph{Time-dependent $\sigma$}
+
+Models with $\sigma$ being time-dependent have animals propogating themselves over smaller distances at some times than at others and so has a useful biological interpretation. For example, an encounter rate function with a half-normal shape and a cyclical time effect would be specified as follows:
+
+\begin{equation}
+\lambda(d,t) = \lambda_0\exp\{-d^2/(2\sigma(t)^2)\}
+\label{eqn:continuous-time.hazt2}
+\end{equation}
+where $\sigma(t)=\exp(\beta_0 + \sum_{v=1}^V\beta_v\times b_v(t))$, and where $b_v(t)$ ($v=1,\ldots,V$) are cyclical basis functions. In this case the actual number of parameters that are estimated is one less than the $df$ value.
+
+Specifying an encounter rate model where the range of the encounter rate function changes with time leads to a function where the effects of time and distance interact. For example, the three dimensional encounter rate function displayed in Figure \ref{fig:continuous-time.3Dplot} has a peak at around 12 noon but the shape through time gets flatter as distance from the detector increases. In other words, if the detector is very far away from an animal's activity centre the animal will hardly be detectable, no matter what time of day it is. Similarly, it is apparent that at times of the day when an animal does not range far (and so has a low value for $\sigma$) the expected encounter rate falls away much more quickly with distance than at times that correspond to higher values for $\sigma$.
+
+Equation \ref{eqn:continuous-time.hazt2} uses a $\lambda_0$ intercept that is constant through time. Effectively this means that if a detector is placed right on top of an animal's activity centre the expected encounter rate will be constant, which explains why the function tends to a flat surface as distance tends to zero. An encounter rate function with this characteristic may be plausible for certain types of animals, for example if an animal tends to rest very close to its activity centre and even during resting it moves around a little and is hence still detectable. It is possible to extend the model to allow both $\lambda_0$ and $\sigma$ to depend on time. Another option is to use parameterisations similar to those of \citet{Efford14} to build in a complementary relationship between $\lambda_0$ and $\sigma$ as functions of time.
+
+\begin{figure}[H]
+\caption{\small The three dimensional figure depicts a hypothetical expected encounter rate for a species that is primarily detectable during the middle part of the day. The function is parameterised according to Equation \eqref{eqn:continuous-time.hazt2} and it is apparent how the expected encounter rate through time depends on distance and vica versa. The plot shows one cycle of 24 hours.}
+<<continuous-time.3Dplot, include = TRUE, echo = FALSE, results = "hide", fig.width = 8, fig.height = 8>>=
+dist <- seq(0,10000, length = 100)
+time.mesh <- seq(0,24, length=100)
+DepHaz.GAM.obj<- create.GAM(hour.24, total.plateau, 4, pred.mesh_ = time.mesh)
+
+sig.cycle.s <- exp(DepHaz.GAM.obj[[4]] %*% c(7.5,0.75,0.7))
+
+haz <- outer(dist,sig.cycle.s,
+             function(x_,y_, lambda0_){
+              lambda0_*exp(-x_^2 / (2*y_^2))
+            }
+            ,lambda0_=0.0035)
+
+persp(dist, time.mesh, haz[,,1], xlab = "Distance (m)", ylab="Time (h)", zlab = "Encounter rate", main = "Encounter rate changing with time and distance for a 24 hr cycle", theta = 30, phi = 10, expand = 0.65, col = '#1283D4', ticktype = "detailed", nticks = 4, cex.axis = 1, cex.lab = 1.5, cex.main = 1.5)
+@
+\label{fig:continuous-time.3Dplot}
+\end{figure}
+
+\subsubsection{Ecological distance}
+
+SCR models have been integrated with resource selection information and with an ``ecological distance'' metric in order to learn about space usage and landscape connectivity \citep{Royle13a, Royle13b, Fuller16, Sutherland15}. Ecological distance is calculated using least-cost path algorithms that depend on a cost or resistance parameter that is associated with a salient landscape feature (like elevation or distance to water). This extension means that models can take account of the habitat in a survey area and recognise that the '`ecological distance' between a particular activity centre that is in suitable habitat and a detector that is in unsuitable habitat may be larger than the ordinary straight-line or Euclidean distance. Using ecological distance also provides the model with the flexibility to move away from circular home ranges that are symmetrical. The resistance parameter can be included in the likelihood and estimated in the same way as the other parameters. 
+
+
+\subsubsection{Model fitting}
+
+The time-dependent component of the encounter rate function is modelled here with a cyclic cubic spline with a cycle duration of 24 hours. All models are fitted using a maximum likelihood framework using the \texttt{nlm} optimiser in R \citep{R19}. Standard errors for individual parameters are obtained from inverting the hessian matrix. The expected encounter rate depends on several parameters and the Delta method is used to approximate the variance on the log scale. The confidence limits on the encounter rate scale are produced by appropriately transforming the limits on the log scale. Lastly, The Aikaike Information Criteria corrected for small sample size (AICc) \citep{Burnham02} is used to assess the degree of support in the data for different hypothesised model structures.    
+
+\section{Results}
+\label{sec:results}
+<<continuous-time.Jags.load, include = FALSE, echo = FALSE, eval=TRUE>>=
+load("JagFits.RData")
+@
+
+\subsection{Male jaguars only}
+
+\paragraph{Models with $\lambda_0(t)$} 
+The camera trap survey produced 287 detections of 19 individual male jaguars over a six-month period. The best-fitting model of encounter rate used a function with $df = 6$ (Table \ref{continuous-time.tab:ests1}, Figure \ref{fig:continuous-time.ind-haz1}) suggesting that an encounter rate function with an evening peak that falls away slowly during the early morning is most appropriate for modelling the detection of male jaguars in the Cockscomb Basin Wildlife Sanctuary in Belize.
+
+<<continuous.time.tab:ests1, eval = TRUE, results = "asis", echo = FALSE>>=
+## model names
+name <- c("$df = 6$", "$df = 8$", "$df = 4$")
+## Calculating density ests and AIC's
+dens <- c(exp(JagFits$IndHaz.K6$estimate[1])*10000, exp(JagFits$IndHaz.K8$estimate[1])*10000,exp(JagFits$IndHaz.K4$estimate[1])*10000)
+aics <- Calc.AICc(mod.objs_=list(JagFits$IndHaz.K6, JagFits$IndHaz.K8, JagFits$IndHaz.K4),
+                  decimals_ = 2, n.inds_ = 19)[[1]]
+delta.aics <- min(aics)-aics
+
+## Putting everything we want in our table into a data frame.
+tab <- data.frame(name, dens, delta.aics)
+## Names of the columns in our table.
+colnames(tab) <- c("", "Density (per 100 km$^2$)", "$\\Delta$AICc")
+caption <- "Density estimates and $\\Delta$AICc's from models with time-varying $\\lambda_0$."
+## Creating the table object.
+tab.obj <- xtable(tab, label = "continuous-time.tab:ests1", caption = caption, digits = 2, align = "llcc")
+## Printing the table object.
+print(tab.obj, type = "latex", include.rownames = FALSE, hline.after = c(-1, 0, 3),
+caption.placement = "top", booktabs = TRUE, table.placement = "H",
+sanitize.text.function = identity, math.style.negative = TRUE)
+@
+
+\begin{figure}[H]
+\caption{\small Estimated $\lambda_0(t)$ components from the encounter rate functions with a 24-hour cycle fitted to the male jaguar data, illustrating how the estimated shape through time changes as $df$ (level of complexity) increases, $df = 4, 6 and 8$ (top panel); the 95\% confidence interval for the function with $df = 6$ is shown (bottom pane).}
+<<continuous-time.IndHaz1, include = TRUE, echo = FALSE, fig.width = 6, fig.height = 8>>=
+vcov <- solve(JagFits$IndHaz.K6$hessian)
+
+m <- matrix(c(1,2),nrow = 2,ncol = 1,byrow = TRUE)
+layout(mat = m,heights = c(0.5,0.5))
+par(mar=c(4, 4, 1.8, 0.5), oma=c(3, 3, 0, 0))
+
+hazard.plot(det.pars_ = c(JagFits$IndHaz.K6$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K6$estimate[4:7]), haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = F, add_ = F, xlabel_ = "", ylabel_ = "", col_ = "blue", cex.legend_ = 1)
+hazard.plot(det.pars_ = c(JagFits$IndHaz.K4$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K4$estimate[4:5]), haz.k_ = 4, haz.type_ = 'IndU', full.ER_ = F, add_ = T, xlabel_ = "", ylabel_ = "", col_ = "red", cex.legend_ = 1)
+hazard.plot(det.pars_ = c(JagFits$IndHaz.K8$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K8$estimate[4:9]), haz.k_ = 8, haz.type_ = 'IndU', full.ER_ = F, add_ = T, xlabel_ = "", ylabel_ = "", col_ = "brown", cex.legend_ = 1)
+legend("topleft", legend=c("df = 4", "df = 6", "df = 8"), 
+       col=c("red", "blue", "brown"), lty = c(1,1,1,1), lwd=rep(2,3), cex=0.9)
+
+hazard.plot(det.pars_ = c(JagFits$IndHaz.K6$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K6$estimate[4:7]), vcov_ = vcov[c(2,4:7),c(2,4:7)], haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = F, add_ = F, xlabel_ = "", ylabel_ = "", col_ = "blue", cex.legend_ = 1, ylim_ = c(0,0.006))
+
+mtext(expression(paste(lambda[0], "(t) ")) , side=2, outer=T, cex = 2)
+mtext("Cycle hour", side=1, outer=T, cex = 2)
+@
+\label{fig:continuous-time.ind-haz1}
+\end{figure}
+
+Figure \ref{fig:continuous-time.ind-haz1} represents the $\lambda_0(t)$ component of the encounter rate for a 24-hour cycle i.e.\ there is no effect of distance and the focus is on the shape of the encounter rate function through time. Expected encounter rates can also be plotted for a given distance and for any duration of time. For example, when plotted over a 48-hour period, there is a 0.1 probability of detection at least once of an individual with an activity centre that is 1 km way from the detector in question ; decreasing to 0.04 at a distance of 5 km (Figure \ref{fig:continuous-time.ind-haz2}).
+
+\begin{figure}[H]
+\caption{\small Expected encounter rates estimated from the male jaguar data using the $\lambda_0(t)$ parameterisation. Curves are shown for distances of 1 and 5 kms, and for a 48-hour period (two cycles). The `Prob' is the probability of being caught at least once over that duration of time, and the dotted lines show the 95\% confidence interval. }
+
+<<continuous-time.IndHaz2, include = TRUE, echo = FALSE, fig.width = 6, fig.height = 8>>=
+m <- matrix(c(1,2),nrow = 2,ncol = 1,byrow = TRUE)
+layout(mat = m,heights = c(0.5,0.5))
+par(mar=c(4, 4, 1.8, 0.5), oma=c(3, 3, 0, 0))
+
+hazard.plot(time.vec_ =  seq(0,48,length = 100), det.pars_ = c(JagFits$IndHaz.K6$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K6$estimate[4:7]), vcov_ = vcov[2:7,2:7], haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = T, add_ = F, xlabel_ = "", ylabel_ = "", dist_ = c(1000), col_ = c("red"), legend.pos_= "topleft",  cex.legend_ = 1, ylim_ = c(0,0.006))
+
+hazard.plot(time.vec_ =  seq(0,48,length = 100), det.pars_ = c(JagFits$IndHaz.K6$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K6$estimate[4:7]), vcov_ = vcov[2:7,2:7], haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = T, add_ = F, xlabel_ = "", ylabel_ = "", dist_ = c(5000), col_ = c("blue"), legend.pos_= "topleft",  cex.legend_ = 1)
+
+mtext("Expected Encounter Rate", side=2, outer=T, cex = 2)
+mtext("Cycle hour", side=1, outer=T, cex = 2)
+@
+\label{fig:continuous-time.ind-haz2}
+\end{figure}
+
+The estimated encounter rate function provides a good fit to the temporal pattern of detections observed in the data (Figure \ref{fig:jaghazardgof}). Extensive simulations that explore encounter rate functions of different complexity in conjunction with different density models confirm that CT models are able to estimate the underlying encounter rate functions well \citep{Borchers14, Distiller16}. As one would expect, the variability in these estimates is higher for more complicated functions that require more parameters, and decreases with more data.
+
+\begin{figure}[H]
+\caption{Assessing the goodness-of-fit of the estimated encounter rate function from the best CT model to the male jaguar detection times. Upper panel: the observed detection times collapsed on to one cycle with the model estimated encounter rate function overlaid (red) and scaled to have the same area under the curve as the histogram. Lower panel: the empirical and the model implied Cumulative Distribution Functions.} 
+\includegraphics[width=\textwidth]{JagFitBoth.pdf}
+\label{fig:jaghazardgof}
+\end{figure}
+
+\paragraph{Models with $\sigma(t)$} 
+
+We also fit models that use the specification given in Equation \eqref{eqn:continuous-time.hazt2} for three levels of complexity. The density estimates from these models are now slightly different to each other, and the model with $df = 6$ is again selected as the best on the basis of AICc (Table \ref{continuous-time.tab:dens.ests2}). 
+
+<<continuous-time.tab:dens.ests2, eval = TRUE, results = "asis", echo = FALSE>>=
+## model names
+name <- c("$df = 6$", "$df = 8$", "$df = 4$")
+## Calculating density ests and AIC's
+dens <- c(exp(JagFits$DepHaz.K6$estimate[1])*10000, exp(JagFits$DepHaz.K8$estimate[1])*10000,exp(JagFits$DepHaz.K4$estimate[1])*10000)
+aics <- Calc.AICc(mod.objs_=list(JagFits$DepHaz.K6, JagFits$DepHaz.K8, JagFits$DepHaz.K4),
+                  decimals_ = 2, n.inds_ = 19)[[1]]
+delta.aics <- min(aics)-aics
+## Putting everything we want in our table into a data frame.
+tab <- data.frame(name, dens, delta.aics)
+## Names of the columns in our table.
+colnames(tab) <- c("", "Density (per 100 km$^2$)", "$\\Delta$AICc")
+caption2 = 'Density estimates and $\\Delta$AICc`s from models with time-varying $\\sigma$.'
+## Creating the table object.
+tab.obj <- xtable(tab, label = "continuous-time.tab:dens.ests2", caption = caption2, digits = 2, align = "llcc")
+## Printing the table object.
+print(tab.obj, type = "latex", include.rownames = FALSE, hline.after = c(-1, 0, 3),
+caption.placement = "top", booktabs = TRUE, table.placement = "tb",
+sanitize.text.function = identity, math.style.negative = TRUE)
+@
+
+Visualising the estimated encounter rate function is more complicated than for the $\lambda_0(t)$ parameterisation because of the interactive effect of time and distance on the expected encounter rate. The fitted encounter rate function can be viewed as a function of both time and distance in a 3-dimensional plot (Figure \ref{fig:continuous-time.dep-haz1}), or 2-dimensional plots of the effect of time (or distance) can be generated for a specified value of distance (or time) (Figure \ref{fig:continuous-time.dep-haz2}). In this case the extra complexity of the 3-dimensional encounter rate function is not necessary (Table \ref{continuous-time.tab:dens.ests3}).
+
+\begin{figure}[H]
+\caption{\small The time and distance dependent expected encounter rate function fitted to the male jaguar data, shown in 3 dimensions.}
+<<continuous-time.DepHaz2, include = TRUE, echo = FALSE, fig.width = 8, fig.height = 8>>=
+hazard.plot(time.vec_ = 0:24, dist.vec_ = seq(0,7000, by = 50), mesh.size_ = 50, det.pars_ = c(JagFits$DepHaz.K6$estimate[2]), spline.pars_ = c(JagFits$DepHaz.K6$estimate[3:7]), haz.k_ = 6, haz.type_ = 'Dep', dim_ = NULL, theta_ = 30, phi = 10, rotate_ = F)
+@
+\label{fig:continuous-time.dep-haz1}
+\end{figure}
+
+\begin{figure}[H]
+\caption{\small Expected encounter rates fitted to the male jaguar data using the dependent parameterisation. Left panel: the effect of time (for given distances between the detector and an activity centre), right hand panel: the effect of distance (for given times).}
+<<continuous-time.DepHaz1, include = TRUE, echo = FALSE, fig.width = 8, fig.height = 6>>=
+m <- matrix(c(1,2),nrow = 1, ncol = 2,byrow = TRUE)
+layout(mat = m, heights = c(0.9))
+par(cex=1, mar=c(4.5,3,3,2), oma=c(0,3.5,2,0))
+
+hazard.plot(det.pars_ = c(JagFits$DepHaz.K6$estimate[2]), spline.pars_ = c(JagFits$DepHaz.K6$estimate[3:7]), haz.k_ = 6, haz.type_ = 'Dep', dim_ = 'time', dist_ = c(2000, 4000, 6000), add_ = F, col_ = c("red", "blue", "green"),  cex.legend_ = 1.3)
+hazard.plot(dist.vec_ = (0:7000), det.pars_ = c(JagFits$DepHaz.K6$estimate[2]), spline.pars_ = c(JagFits$DepHaz.K6$estimate[3:7]), haz.k_ = 6, haz.type_ = 'Dep', dim_ = 'dist', time_ = c(2,13,20), add_ = F, col_ = c("blue", "red", "green"),  cex.legend_ = 1.3)
+
+mtext("Expected encounter rate", side=2, outer=T, cex=2, line=0.5)
+@
+\label{fig:continuous-time.dep-haz2}
+\end{figure}
+
+<<continuous-time.tab:dens.ests3, eval = TRUE, results = "asis", echo = FALSE>>=
+## model names
+name <- c("$\\lambda_0(t)$", "$\\sigma(t)$")
+## Calculating density ests and AIC's
+dens <- c(exp(JagFits$IndHaz.K6$estimate[1])*10000, exp(JagFits$DepHaz.K6$estimate[1])*10000)
+aics <- Calc.AICc(mod.objs_=list(JagFits$IndHaz.K6, JagFits$DepHaz.K6),
+                  decimals_ = 2, n.inds_ = 19)[[1]]
+delta.aics <- min(aics)-aics
+## Putting everything we want in our table into a data frame.
+tab <- data.frame(name, dens, delta.aics)
+## Names of the columns in our table.
+colnames(tab) <- c("", "Density (per 100 km$^2$)", "$\\Delta$AICc")
+caption2 = 'Comparing models with $\\lambda_0(t)$ and $\\sigma(t)$.'
+## Creating the table object.
+tab.obj <- xtable(tab, label = "continuous-time.tab:dens.ests3", caption = caption2, digits = 2, align = "llcc")
+## Printing the table object.
+print(tab.obj, type = "latex", include.rownames = FALSE, hline.after = c(-1, 0, 2),
+caption.placement = "top", booktabs = TRUE, table.placement = "tb",
+sanitize.text.function = identity, math.style.negative = TRUE)
+@
+
+\paragraph{Using ecological distance}
+
+Jaguars are known to routinely walk the trail system as moving along the trails is much easier than moving through the vegetation \citep{Harmsen10}. A model with the $\sigma(t)$ parameterisation that includes ecological distance based on the distance to trails covariate (Figure \ref{fig:D2trails}) produces an estimate for conductance (inverse of cost) of -1.7, i.e. locations further from the trail network are less suitable to move through. 
+
+We can plot space use at different times of the day. For example, Figure \ref{fig:spaceusage} shows the estimated space usage at two times of day for an animal that has an activity centre at two different places. Comparing the left and right plots, one can see how the animal is expected to roam further when it is estimated to be more active. Also an animal with an activity centre close to the network of trails is estimated to roam further than one with a centre that is away from the trails, and that the shape of the usage area can be irregular.
+
+A limitation of this example is that if a pixel with a large distance from the trails is selected, the model estimates that the usage will hardly extend beyond that chosen point, i.e. the model estimates unrealistically low usage for points far away from the trail network. It is likely that this is related to the study design because all cameras are on the trails and so there is no sampling at distances away from the trail network. 
+
+\begin{figure}[H]
+\caption{\small Standardised distance to the trail network covariate across the study area in Belize, showing camera stations (red dots) and trails (blue lines).}
+\includegraphics[width=0.9\textwidth]{D2trails.pdf}
+\label{fig:D2trails}
+\end{figure}
+
+\begin{figure}[H]
+\caption{\small Estimated space usage at two different times (13:00 and 20:00) for an animal with an activity centre at two different places marked by red dots. The trail network is shown in blue.}
+\includegraphics[width=\textwidth]{SpaceUsage2.pdf}
+\label{fig:spaceusage}
+\end{figure}
+
+\subsection{Sex-specific comparison}
+
+CT SCR models can be used to explore differences in activity patterns between different species, time periods, locations or sexes. In addition to the detections of male jaguars, the survey also produced 44 detections of 8 female jaguars and hence these data can be used to illustrate the estimation and comparison of sex-specific activity patterns. 
+
+The $\lambda_0(t)$ parameterisation given in Equation \eqref{eqn:continuous-time.hazt1}, with a cycle duration of 24 hours, is used to fit two models. The first model specifies a common encounter rate function for both sexes whereas the 2nd model estimates a different encounter rate function for each sex. A spline with $df = 6$ is used for models that specify a common encounter rate function whereas the sex-specific functions use the same value for the male data ($df = 6$) and $df = 4$  for the female data. Simpler models are used for females due to there being fewer captures of females (44 vs 278 for males). The models also specify a different $\sigma$ value for males and females since it is well known that males tend to range further than females (the estimates here are $\sigma_m = 3721$ m and $\sigma_f = 1732$ m). 
+
+%The AICc's from these models are shown in Table \ref{continuous.time.tab:AICs2} and a plot of the estimated encounter rate functions is shown in Figure \ref{fig:continuous-time.sex-haz1}. 
+
+<<continuous.time.tab:AICs2, eval = TRUE, results = "asis", echo = FALSE>>=
+## model names
+name <- c("AICc")
+## Calculating AIC's
+#getting n inds
+aics <- Calc.AICc(mod.objs_=list(JagFits$IndHaz.K6.common3, JagFits$IndHazs.sepsigma),
+                  decimals_ = 2, n.inds_ = 29)[[1]]
+delta.aics <- min(aics) - aics
+## Putting everything we want in our table into a data frame.
+tab <- data.frame(name, delta.aics[1], delta.aics[2])
+## Names of the columns in our table.
+colnames(tab) <- c("", "Common hazard", "Separate hazard")
+caption <- "$\\Delta$AICc's from models with $\\lambda_0(t)$."
+## Creating the table object.
+tab.obj <- xtable(tab, label = "continuous.time.tab:AICs2", caption = caption, digits = 2)
+## Printing the table object.
+print(tab.obj, type = "latex", include.rownames = FALSE, hline.after = c(-1, 0, 1),
+caption.placement = "top", booktabs = TRUE, table.placement = "tb",
+sanitize.text.function = identity, math.style.negative = TRUE)
+@
+
+\begin{figure}[H]
+\caption{\small Estimated $\lambda_0(t)$ component from the encounter rate function for both sexes (common, black line) and from the model with sex-specific functions  (male, blue line; female, red line). Separate values for $\sigma$ are specified in both cases. }
+<<continuous-time.sex-haz1, include = TRUE, echo = FALSE, fig.width = 6, fig.height = 6>>=
+par(cex=1, mar=c(4, 4.5, 1.8, 0.5))
+hazard.plot(det.pars_ = c(JagFits$IndHazs.sepsigma$estimate[2:3]), spline.pars_ = c(JagFits$IndHazs.sepsigma$estimate[4:7]), 
+            haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = F, add_ = F, col_ = "blue", ylabel_ = expression(paste(lambda[0], "(t) ")))
+hazard.plot(det.pars_ = c(JagFits$IndHaz.K6.common3$estimate[2:3]), spline.pars_ = c(JagFits$IndHaz.K6.common3$estimate[4:7]), 
+            haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = F, add_ = T, col_ = "black", ylabel_ = expression(paste(lambda[0], "(t) ")))
+hazard.plot(det.pars_ = c(JagFits$IndHazs.sepsigma$estimate[c(2,8)]), spline.pars_ = c(JagFits$IndHazs.sepsigma$estimate[9:10]), 
+            haz.k_ = 4, haz.type_ = 'IndU', full.ER_ = F, add_ = T, col_ = "red", ylabel_ = expression(paste(lambda[0], "(t) ")))
+legend("topleft", legend=c("Common", "Male", "Female"), col=c("black" ,"blue", "red"), 
+       lty = c(1,1,1), lwd=rep(2,3), cex = 1.5)
+@
+\label{fig:continuous-time.sex-haz1}
+\end{figure}
+
+\begin{figure}[H]
+\caption{\small Estimated sex-specific encounter rate functions with 95\% confidence intervals. }
+<<continuous-time.sex-haz2, include = TRUE, echo = FALSE, fig.width = 6, fig.height = 6>>=
+vcov2 <- solve(JagFits$IndHazs.sepsigma$hessian)
+
+m <- matrix(c(1,2),nrow = 2, ncol = 1, byrow = TRUE)
+layout(mat = m, heights = c(0.5, 0.5))
+par(cex=1, mar=c(4.5,3,3,2), oma=c(1.5,3.5,0,0))
+
+hazard.plot(time.vec_ = c(0,24), det.pars_ = c(JagFits$IndHazs.sepsigma$estimate[2:3]), spline.pars_ = c(JagFits$IndHazs.sepsigma$estimate[4:7]), vcov_ = vcov2[2:7,2:7], haz.k_ = 6, haz.type_ = 'IndU', full.ER_ = T, add_ = F, xlabel_ = "", ylabel_ = "", dist_ = c(1000), col_ = c("blue"), legend.pos_= "topright",  cex.legend_ = 1, ylim_ = c(0,0.006))
+legend("topleft", legend=c( "Male"), col=c("blue"),  lty = c(1), lwd = 2, cex = 1)
+
+hazard.plot(time.vec_ = c(0,24), det.pars_ = c(JagFits$IndHazs.sepsigma$estimate[c(2,8)]), spline.pars_ = c(JagFits$IndHazs.sepsigma$estimate[9:10]), vcov_ = vcov2[c(2,8:10),c(2,8:10)], haz.k_ = 4, haz.type_ = 'IndU', full.ER_ = T, add_ = F, xlabel_ = "", ylabel_ = "", dist_ = c(1000), col_ = c("red"), legend.pos_= "topright",  cex.legend_ = 1, ylim_ = c(0,0.006))
+legend("topleft", legend=c( "Female"), col=c("red"),  lty = c(1), lwd = 2, cex = 1)
+
+mtext("Expected Encounter Rate", side=2, outer=T, cex = 2)
+mtext("Cycle hour", side=1, outer=T, cex = 2)
+@
+\label{fig:continuous-time.sex-haz2}
+\end{figure}
+
+The expected encounter rate for females is less variable than for males and females are more likely to be detected during the middle part of the day and less likely to be detected during the period that corresponds to peak male activity (Figures \ref{fig:continuous-time.sex-haz1} and \ref{fig:continuous-time.sex-haz2}). Based on statistical criteria, the two encounter rate functions are not sufficiently different to justify estimating extra parameters ; for these data a common encounter rate function is preferred (Table \ref{continuous.time.tab:AICs2}). Of course there may be biological interest in estimating separate patterns despite the AICc results. 
+
+\section{Discussion}
+\label{sec:discussion}
+
+The emergence and rapid growth in usage of camera traps has greatly increased the generation of data that can provide information on activity patterns. CT SCR models can be used to estimate detectability through time from data that contain capture times, and to make inference about activity levels in relation to space use. The CT SCR framework utilises the actual times of detection and involves no arbitrary decisions about intervals, involves estimating as many or as few parameters as the data support, provides a realistic smooth estimate of activity pattern change and a rigorous framework for model selection and uncertainty quantification. The ability to use standard model selection tools within a formal modelling framework allows researchers to evaluate the extent of support for competing hypotheses related to animal activity across space or time. 
+
+The simplest way to estimate an activity pattern from data on detection times is to summarise the information with histograms as done by \citet{Harmsen09}. Alternatively, it is possible to use a simpler modelling approach (like fitting a regression spline) if the objective is solely to fit a model to the observed capture times, and one could do this with data that do not necessarily involve individual identifications. However, simpler approaches are not able to include a distance dimension along with with time and hence are not able to explore spatio-temporal processes in the same way as the CT SCR framework that enables further investigation of within population variation of time-space distribution patterns. Incorporating ecological distance extends the utility and realism of these models, though these types of models are still fairly new and the issue of design and what kind of data is necessary to accurately estimate conductance and space usage warrants further exploration.
+
+Many carnivore species have visually distinguishable features (like sex) and exhibit differences in time and space use between these factors (refs), however  it is very likely that there exists further variation that is driven by variables that are not visible ; e.g. dominant/non-dominant or resident/transient individuals. Unfortunately, these variables cannot be easily extracted from photo data and can only be assigned to individuals on the basis of long-term detection histories of population studies, but the current framework might allow detection of variable space and time across shorter time periods. If dominant/resident individuals occupy the distribution spectrum of optimal space and time use ; subdominant/transient individuals will avoid these patterns by being active at different times with varying spatial patterns. The interspecific avoidance patterns, like those found for jaguars and pumas \citep{Harmsen09}, might equally be studied in a more robust way within a single analysis framework. It is likely that researching these issues only within a spatial or temporal framework will not allow us to distinguish differential patterns between individuals, whereas more complex interactive analyses might reveal such differences. The ability of camera traps to detect a wide array of species means that multispecies analyses, regarding space and time use, can be carried out in more detail; e.g. predator-prey interactions and interspecific competition. 
+
+\citet{Ridout09} present 12 hypothetical activity patterns that represent the sorts of patterns one is likely to see in realistic biological settings, and \citet{Farris15} present estimated activity patterns for nine different species that have very different shapes. The key characteristics of these patterns are diurnal vs nocturnal, the number of peaks, the intensity of the peak(s), and the extent to which activity levels reduce during inactive periods. CT SCR models can accurately estimate a variety of encounter rate function shapes and should easily be able to detect features of interest and to investigate various questions of biological interest related to activity. For example, data collected on the same species at different times of the year or at different locations could be used to investigate seasonal differences in activity patterns or how local factors affect behaviour, whereas data on two different species at the same time of year could be used to explore sympatric partitioning of time.
+
+There is evidence that jaguars in Belize are most active in the evening and early morning, and some evidence that females have a slightly different pattern with fewer peaks and troughs. It is also apparent that there is virtually no difference in the density estimates from the $\lambda_0(t)$ models with different values for $df$. Recall that the specification of the encounter rate function used here seperates the effects of time and distance and a consequence of this is that the capture times do not have any information about density. It is therefore not surprising that the different model specifications for the observation process do not lead to different estimates of density. In contrast to this, the $\sigma(t)$ models produce slightly different estimates for density.
+
+Based on patterns from monthly capture rates across the camera trap array \citet{Harmsen09} found evidence for temporal avoidance between jaguars and pumas, and found that both species used the same areas and temporal schedules but avoided coincident times. In the applications presented here, a single activity schedule is estimated for each species / session but it is straightforward to extend the model to estimate species-specific encounter rate functions for different months if required.  
+
+SCR models were developed to primarily solve the problem of estimating density in a non-spatial CR framework. However there is a growing realisation that these models open up opportunities to learn about other spatio-temporal processes \citep{Borchers16}. If the aim is to make inference not only about density but also about space usage, movement or some other spatio-temporal process, then the estimation of the observation process has direct interest in its own right, and the ability of the CT models to flexibly model the observation process adds a new dimension to SCR models.  CT SCR models have the potential to provide a valuable tool for researchers trying to understand dynamics related to animal activity patterns and space usage.
+
+\bibliographystyle{apalike}
+\bibliography{articles2,books2,other}
+
+\end{document}
+
+The method presented here produces a detection hazard from which inference is made about activity level. It is possible that detectability could be affected by other factors that are not related to activity level, and if known these factors could be included in the model for the detection hazard. In such a case it would be possible to obtain predicted curves for various covariate patterns.
